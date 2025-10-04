@@ -8,25 +8,43 @@ import {
   useMap,
 } from '@vis.gl/react-google-maps';
 import { useEffect, useState } from 'react';
-import type { Hospital, UrbanZone, Recommendation } from '@/lib/types';
+import type { Hospital, UrbanZone, Recommendation, Coordinates } from '@/lib/types';
 import { HospitalIcon, MapPin } from 'lucide-react';
 
-type MapViewProps = {
-  hospitals: Hospital[];
-  zones: UrbanZone[];
-  recommendations: Recommendation[];
-  showHospitals: boolean;
-  showZones: boolean;
-  showHeatmap: boolean;
-};
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 
-function HeatmapLayer({ zones, showHeatmap }: { zones: UrbanZone[], showHeatmap: boolean }) {
+function Polygons({ zones, showZones }: { zones: UrbanZone[], showZones: boolean }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!map || !showHeatmap) {
-      return;
-    }
+    if (!map || !showZones) return;
+
+    const googlePolygons = zones.map(zone => {
+      const polygon = new google.maps.Polygon({
+        paths: zone.bounds,
+        strokeColor: zone.color,
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: zone.color,
+        fillOpacity: 0.35,
+      });
+      polygon.setMap(map);
+      return polygon;
+    });
+
+    return () => {
+      googlePolygons.forEach(p => p.setMap(null));
+    };
+  }, [map, zones, showZones]);
+
+  return null;
+}
+
+function Heatmap({ zones, showHeatmap }: { zones: UrbanZone[], showHeatmap: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || !showHeatmap) return;
 
     const heatmapData = zones.map(zone => ({
       location: new google.maps.LatLng(zone.center.lat, zone.center.lng),
@@ -35,10 +53,10 @@ function HeatmapLayer({ zones, showHeatmap }: { zones: UrbanZone[], showHeatmap:
 
     const heatmap = new google.maps.visualization.HeatmapLayer({
       data: heatmapData,
-      map: map,
+      radius: 50,
     });
-    
-    heatmap.set('radius', 50);
+
+    heatmap.setMap(map);
 
     return () => {
       heatmap.setMap(null);
@@ -48,73 +66,34 @@ function HeatmapLayer({ zones, showHeatmap }: { zones: UrbanZone[], showHeatmap:
   return null;
 }
 
-function Polygons({ zones, showZones }: { zones: UrbanZone[], showZones: boolean }) {
-    const map = useMap();
-    const [polygons, setPolygons] = useState<google.maps.Polygon[]>([]);
-  
-    useEffect(() => {
-      if (!map || !showZones) {
-        polygons.forEach(p => p.setMap(null));
-        setPolygons([]);
-        return;
-      }
-  
-      const newPolygons = zones.map(zone => {
-        const p = new google.maps.Polygon({
-          paths: zone.bounds,
-          strokeColor: zone.color,
-          strokeOpacity: 0.8,
-          strokeWeight: 2,
-          fillColor: zone.color,
-          fillOpacity: 0.35,
-        });
-        p.setMap(map);
-        return p;
-      });
-  
-      setPolygons(newPolygons);
-  
-      return () => {
-        newPolygons.forEach(p => p.setMap(null));
-      };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [map, zones, showZones]);
-  
-    return null;
-  }
+type MapViewProps = {
+  zones: UrbanZone[];
+  hospitals: Hospital[];
+  recommendations: Recommendation[];
+  showHospitals: boolean;
+  showZones: boolean;
+  showHeatmap: boolean;
+};
 
 export function MapView({
-  hospitals,
   zones,
+  hospitals,
   recommendations,
   showHospitals,
   showZones,
   showHeatmap,
 }: MapViewProps) {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
 
-  if (!apiKey) {
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-muted">
-        <p className="text-destructive">
-          Google Maps API Key is missing. Please add it to your .env.local file.
-        </p>
-      </div>
-    );
-  }
-
-  const mapId = 'a1290a372e628593';
-
   return (
-    <APIProvider apiKey={apiKey} libraries={['visualization']}>
+    <APIProvider apiKey={API_KEY} libraries={['visualization']}>
       <Map
-        defaultCenter={{ lat: 20.659698, lng: -103.349609 }}
+        defaultCenter={{ lat: 20.659698, lng: -103.349609 }} // Guadalajara
         defaultZoom={11}
+        mapId="urban_bee_map"
         gestureHandling={'greedy'}
         disableDefaultUI={true}
-        mapId={mapId}
-        className='w-full h-full'
+        className="w-full h-full"
       >
         {showHospitals && hospitals.map(hospital => (
           <AdvancedMarker
@@ -123,7 +102,7 @@ export function MapView({
             onClick={() => setSelectedHospital(hospital)}
           >
             <div className="p-1 bg-white rounded-full shadow-md">
-                <HospitalIcon className="text-blue-600" size={24} />
+              <HospitalIcon className="text-blue-600" size={24} />
             </div>
           </AdvancedMarker>
         ))}
@@ -133,25 +112,26 @@ export function MapView({
             position={selectedHospital.location}
             onCloseClick={() => setSelectedHospital(null)}
           >
-            <div className="p-2">
+            <div className="p-1">
               <h3 className="font-bold">{selectedHospital.name}</h3>
               <p>Type: {selectedHospital.type}</p>
               <p>Capacity: {selectedHospital.capacity}</p>
             </div>
           </InfoWindow>
         )}
-        
-        <Polygons zones={zones} showZones={showZones} />
 
-        {showHeatmap && <HeatmapLayer zones={zones} showHeatmap={showHeatmap} />}
+        <Polygons zones={zones} showZones={showZones} />
+        <Heatmap zones={zones} showHeatmap={showHeatmap} />
 
         {recommendations.map((rec, index) => (
-            <AdvancedMarker key={`rec-${index}`} position={rec.center}>
-                <MapPin className="text-accent" size={36} fill="hsl(var(--accent))" strokeWidth={1.5} stroke="hsl(var(--accent-foreground))" />
-            </AdvancedMarker>
+           <AdvancedMarker key={`rec-${index}`} position={rec.center}>
+             <MapPin className="text-yellow-500" size={36} fill="hsl(48, 96%, 53%)" strokeWidth={1.5} stroke="hsl(var(--accent-foreground))" />
+           </AdvancedMarker>
         ))}
-        
+
       </Map>
     </APIProvider>
   );
 }
+
+    

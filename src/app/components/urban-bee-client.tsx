@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import type { Hospital, UrbanZone } from '@/lib/types';
+import type { Recommendation, UrbanZone, Hospital } from '@/lib/types';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from './app-sidebar';
 import { MapView } from './map-view';
-import { RecommendationsList } from './recommendations-list';
+import { getRecommendations } from '@/app/actions';
 
 type UrbanBeeClientProps = {
   initialZones: UrbanZone[];
@@ -18,11 +18,14 @@ export default function UrbanBeeClient({
 }: UrbanBeeClientProps) {
   const [zones] = useState<UrbanZone[]>(initialZones);
   const [hospitals] = useState<Hospital[]>(initialHospitals);
-  
-  const [showHospitals] = useState(true);
-  const [showZones] = useState(true);
-  const [showHeatmap] = useState(false);
-  
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+
+  const [showHospitals, setShowHospitals] = useState(true);
+  const [showZones, setShowZones] = useState(true);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [priorityThreshold, setPriorityThreshold] = useState(0.6);
+  const [isLoading, setIsLoading] = useState(false);
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -31,7 +34,7 @@ export default function UrbanBeeClient({
           <MapView
             hospitals={hospitals}
             zones={zones}
-            recommendations={[]}
+            recommendations={recommendations}
             showHospitals={showHospitals}
             showZones={showZones}
             showHeatmap={showHeatmap}
@@ -41,3 +44,5 @@ export default function UrbanBeeClient({
     </SidebarProvider>
   );
 }
+
+    
