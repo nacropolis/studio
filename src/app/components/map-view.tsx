@@ -10,7 +10,6 @@ import {
 import { useEffect, useState } from 'react';
 import type { Hospital, UrbanZone, Recommendation } from '@/lib/types';
 import { HospitalIcon, MapPin } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type MapViewProps = {
   hospitals: Hospital[];
