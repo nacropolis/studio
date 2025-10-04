@@ -5,7 +5,6 @@ import {
   Map,
   AdvancedMarker,
   InfoWindow,
-  Polygon,
   useMap,
 } from '@vis.gl/react-google-maps';
 import { useEffect, useState } from 'react';
@@ -27,7 +26,6 @@ function HeatmapLayer({ zones, showHeatmap }: { zones: UrbanZone[], showHeatmap:
 
   useEffect(() => {
     if (!map || !showHeatmap) {
-      // In a real app, you'd want to clear the heatmap layer here
       return;
     }
 
@@ -50,6 +48,41 @@ function HeatmapLayer({ zones, showHeatmap }: { zones: UrbanZone[], showHeatmap:
 
   return null;
 }
+
+function Polygons({ zones, showZones }: { zones: UrbanZone[], showZones: boolean }) {
+    const map = useMap();
+    const [polygons, setPolygons] = useState<google.maps.Polygon[]>([]);
+  
+    useEffect(() => {
+      if (!map || !showZones) {
+        polygons.forEach(p => p.setMap(null));
+        setPolygons([]);
+        return;
+      }
+  
+      const newPolygons = zones.map(zone => {
+        const p = new google.maps.Polygon({
+          paths: zone.bounds,
+          strokeColor: zone.color,
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          fillColor: zone.color,
+          fillOpacity: 0.35,
+        });
+        p.setMap(map);
+        return p;
+      });
+  
+      setPolygons(newPolygons);
+  
+      return () => {
+        newPolygons.forEach(p => p.setMap(null));
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [map, zones, showZones]);
+  
+    return null;
+  }
 
 export function MapView({
   hospitals,
@@ -109,17 +142,7 @@ export function MapView({
           </InfoWindow>
         )}
         
-        {showZones && zones.map(zone => (
-          <Polygon
-            key={zone.id}
-            paths={zone.bounds}
-            strokeColor={zone.color}
-            strokeOpacity={0.8}
-            strokeWeight={2}
-            fillColor={zone.color}
-            fillOpacity={0.35}
-          />
-        ))}
+        <Polygons zones={zones} showZones={showZones} />
 
         {showHeatmap && <HeatmapLayer zones={zones} showHeatmap={showHeatmap} />}
 
