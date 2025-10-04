@@ -1,70 +1,60 @@
 'use client';
 
 import {
-  APIProvider,
-  Map,
-  AdvancedMarker,
-  InfoWindow,
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polygon,
   useMap,
-} from '@vis.gl/react-google-maps';
-import { useEffect, useState } from 'react';
-import type { Hospital, UrbanZone, Recommendation, Coordinates } from '@/lib/types';
+} from 'react-leaflet';
+import L, { LatLngExpression } from 'leaflet';
+import { renderToString } from 'react-dom/server';
+import type { Hospital, UrbanZone, Recommendation } from '@/lib/types';
 import { HospitalIcon, MapPin } from 'lucide-react';
+import { useEffect } from 'react';
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string;
+const createHospitalIcon = () => {
+  return L.divIcon({
+    html: renderToString(
+      <div className="p-1 bg-white rounded-full shadow-md">
+        <HospitalIcon className="text-blue-600" size={24} />
+      </div>
+    ),
+    className: 'bg-transparent border-0',
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+  });
+};
 
-function Polygons({ zones, showZones }: { zones: UrbanZone[], showZones: boolean }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!map || !showZones) return;
-
-    const googlePolygons = zones.map(zone => {
-      const polygon = new google.maps.Polygon({
-        paths: zone.bounds,
-        strokeColor: zone.color,
-        strokeOpacity: 0.8,
-        strokeWeight: 2,
-        fillColor: zone.color,
-        fillOpacity: 0.35,
-      });
-      polygon.setMap(map);
-      return polygon;
+const createRecommendationIcon = () => {
+    return L.divIcon({
+        html: renderToString(
+            <MapPin className="text-yellow-500" size={36} fill="hsl(48, 96%, 53%)" strokeWidth={1.5} stroke="hsl(var(--accent-foreground))" />
+        ),
+        className: 'bg-transparent border-0',
+        iconSize: [36, 36],
+        iconAnchor: [18, 36],
     });
-
-    return () => {
-      googlePolygons.forEach(p => p.setMap(null));
-    };
-  }, [map, zones, showZones]);
-
-  return null;
 }
 
-function Heatmap({ zones, showHeatmap }: { zones: UrbanZone[], showHeatmap: boolean }) {
+
+const Polygons = ({ zones, showZones }: { zones: UrbanZone[], showZones: boolean }) => {
   const map = useMap();
+  if (!showZones) return null;
 
-  useEffect(() => {
-    if (!map || !showHeatmap) return;
-
-    const heatmapData = zones.map(zone => ({
-      location: new google.maps.LatLng(zone.center.lat, zone.center.lng),
-      weight: zone.population,
-    }));
-
-    const heatmap = new google.maps.visualization.HeatmapLayer({
-      data: heatmapData,
-      radius: 50,
-    });
-
-    heatmap.setMap(map);
-
-    return () => {
-      heatmap.setMap(null);
-    };
-  }, [map, zones, showHeatmap]);
-
-  return null;
-}
+  return (
+    <>
+      {zones.map((zone) => (
+        <Polygon
+          key={zone.id}
+          positions={zone.bounds.map(b => [b.lat, b.lng]) as LatLngExpression[]}
+          pathOptions={{ color: zone.color, fillOpacity: 0.35, weight: 2 }}
+        />
+      ))}
+    </>
+  );
+};
 
 type MapViewProps = {
   zones: UrbanZone[];
@@ -83,55 +73,50 @@ export function MapView({
   showZones,
   showHeatmap,
 }: MapViewProps) {
-  const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
+  const hospitalIcon = createHospitalIcon();
+  const recommendationIcon = createRecommendationIcon();
 
   return (
-    <APIProvider apiKey={API_KEY} libraries={['visualization']}>
-      <Map
-        defaultCenter={{ lat: 20.659698, lng: -103.349609 }} // Guadalajara
-        defaultZoom={11}
-        mapId="urban_bee_map"
-        gestureHandling={'greedy'}
-        disableDefaultUI={true}
-        className="w-full h-full"
-      >
-        {showHospitals && hospitals.map(hospital => (
-          <AdvancedMarker
-            key={hospital.id}
-            position={hospital.location}
-            onClick={() => setSelectedHospital(hospital)}
-          >
-            <div className="p-1 bg-white rounded-full shadow-md">
-              <HospitalIcon className="text-blue-600" size={24} />
-            </div>
-          </AdvancedMarker>
-        ))}
+    <MapContainer
+      center={[20.659698, -103.349609]} // Guadalajara
+      zoom={12}
+      scrollWheelZoom={true}
+      className="w-full h-full"
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
 
-        {selectedHospital && (
-          <InfoWindow
-            position={selectedHospital.location}
-            onCloseClick={() => setSelectedHospital(null)}
+      {showHospitals &&
+        hospitals.map((hospital) => (
+          <Marker
+            key={hospital.id}
+            position={[hospital.location.lat, hospital.location.lng]}
+            icon={hospitalIcon}
           >
-            <div className="p-1">
-              <h3 className="font-bold">{selectedHospital.name}</h3>
-              <p>Type: {selectedHospital.type}</p>
-              <p>Capacity: {selectedHospital.capacity}</p>
-            </div>
-          </InfoWindow>
-        )}
+            <Popup>
+              <div className="p-1">
+                <h3 className="font-bold">{hospital.name}</h3>
+                <p>Type: {hospital.type}</p>
+                <p>Capacity: {hospital.capacity}</p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
 
         <Polygons zones={zones} showZones={showZones} />
-        <Heatmap zones={zones} showHeatmap={showHeatmap} />
-
+        
         {recommendations.map((rec, index) => (
-           <AdvancedMarker key={`rec-${index}`} position={rec.center}>
-             <MapPin className="text-yellow-500" size={36} fill="hsl(48, 96%, 53%)" strokeWidth={1.5} stroke="hsl(var(--accent-foreground))" />
-           </AdvancedMarker>
+             <Marker key={`rec-${index}`} position={[rec.center.lat, rec.center.lng]} icon={recommendationIcon}>
+                <Popup>
+                    <div>
+                        <h3 className="font-bold">{rec.location}</h3>
+                        <p>{rec.reason}</p>
+                    </div>
+                </Popup>
+             </Marker>
         ))}
-
-      </Map>
-    </APIProvider>
+    </MapContainer>
   );
 }
-
-    

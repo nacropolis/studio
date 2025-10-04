@@ -20,11 +20,10 @@ export default function UrbanBeeClient({
   const [hospitals] = useState<Hospital[]>(initialHospitals);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
+  // For simplicity, we're hardcoding these to true for now
   const [showHospitals, setShowHospitals] = useState(true);
   const [showZones, setShowZones] = useState(true);
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [priorityThreshold, setPriorityThreshold] = useState(0.6);
-  const [isLoading, setIsLoading] = useState(false);
 
   return (
     <SidebarProvider>
@@ -44,5 +43,3 @@ export default function UrbanBeeClient({
     </SidebarProvider>
   );
 }
-
-    
