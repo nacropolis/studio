@@ -56,10 +56,7 @@ export function AppSidebar() {
               <HospitalIcon />
               <span>Data Layers</span>
             </SidebarMenuButton>
-            <SidebarMenuSub>
-                <SidebarMenuSubButton>Hospitals</SidebarMenuSubButton>
-                <SidebarMenuSubButton>Urban Zones</SidebarMenuSubButton>
-            </SidebarMenuSub>
+            
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Heatmaps">
