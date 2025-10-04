@@ -4,8 +4,14 @@ import { useState } from 'react';
 import type { Recommendation, UrbanZone, Hospital } from '@/lib/types';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from './app-sidebar';
-import { MapView } from './map-view';
+import dynamic from 'next/dynamic';
 import { getRecommendations } from '@/app/actions';
+
+const MapView = dynamic(() => import('./map-view').then(mod => mod.MapView), {
+  ssr: false,
+  loading: () => <div className="w-full h-full bg-muted animate-pulse" />,
+});
+
 
 type UrbanBeeClientProps = {
   initialZones: UrbanZone[];
@@ -23,7 +29,6 @@ export default function UrbanBeeClient({
   // For simplicity, we're hardcoding these to true for now
   const [showHospitals, setShowHospitals] = useState(true);
   const [showZones, setShowZones] = useState(true);
-  const [showHeatmap, setShowHeatmap] = useState(false);
 
   return (
     <SidebarProvider>
@@ -36,7 +41,6 @@ export default function UrbanBeeClient({
             recommendations={recommendations}
             showHospitals={showHospitals}
             showZones={showZones}
-            showHeatmap={showHeatmap}
           />
         </div>
       </SidebarInset>

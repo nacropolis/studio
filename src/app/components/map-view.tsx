@@ -62,7 +62,6 @@ type MapViewProps = {
   recommendations: Recommendation[];
   showHospitals: boolean;
   showZones: boolean;
-  showHeatmap: boolean;
 };
 
 export function MapView({
@@ -71,7 +70,6 @@ export function MapView({
   recommendations,
   showHospitals,
   showZones,
-  showHeatmap,
 }: MapViewProps) {
   const hospitalIcon = createHospitalIcon();
   const recommendationIcon = createRecommendationIcon();
