@@ -1,0 +1,68 @@
+[
+    {
+      "id": "z-01",
+      "name": "Downtown Core",
+      "population": 25000,
+      "deprivationIndex": 0.4,
+      "center": {"lat": 34.045, "lng": -118.25},
+      "bounds": [
+        {"lat": 34.05, "lng": -118.26},
+        {"lat": 34.05, "lng": -118.24},
+        {"lat": 34.04, "lng": -118.24},
+        {"lat": 34.04, "lng": -118.26}
+      ]
+    },
+    {
+      "id": "z-02",
+      "name": "Eastside Industrial",
+      "population": 12000,
+      "deprivationIndex": 0.8,
+      "center": {"lat": 34.03, "lng": -118.21},
+      "bounds": [
+        {"lat": 34.035, "lng": -118.22},
+        {"lat": 34.035, "lng": -118.20},
+        {"lat": 34.025, "lng": -118.20},
+        {"lat": 34.025, "lng": -118.22}
+      ]
+    },
+    {
+      "id": "z-03",
+      "name": "Silverlake Heights",
+      "population": 45000,
+      "deprivationIndex": 0.2,
+      "center": {"lat": 34.08, "lng": -118.28},
+      "bounds": [
+        {"lat": 34.085, "lng": -118.29},
+        {"lat": 34.085, "lng": -118.27},
+        {"lat": 34.075, "lng": -118.27},
+        {"lat": 34.075, "lng": -118.29}
+      ]
+    },
+    {
+      "id": "z-04",
+      "name": "Verdant Valley",
+      "population": 30000,
+      "deprivationIndex": 0.9,
+      "center": {"lat": 34.11, "lng": -118.3},
+      "bounds": [
+        {"lat": 34.115, "lng": -118.31},
+        {"lat": 34.115, "lng": -118.29},
+        {"lat": 34.105, "lng": -118.29},
+        {"lat": 34.105, "lng": -118.31}
+      ]
+    },
+    {
+        "id": "z-05",
+        "name": "South Central",
+        "population": 65000,
+        "deprivationIndex": 0.7,
+        "center": {"lat": 33.98, "lng": -118.27},
+        "bounds": [
+          {"lat": 33.99, "lng": -118.28},
+          {"lat": 33.99, "lng": -118.26},
+          {"lat": 33.97, "lng": -118.26},
+          {"lat": 33.97, "lng": -118.28}
+        ]
+    }
+  ]
+  

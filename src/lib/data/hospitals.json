@@ -1,0 +1,30 @@
+[
+  {
+    "id": "h-01",
+    "name": "City General Hospital",
+    "location": { "lat": 34.0522, "lng": -118.2437 },
+    "capacity": 500,
+    "type": "General"
+  },
+  {
+    "id": "h-02",
+    "name": "St. Jude's Children's Hospital",
+    "location": { "lat": 34.065, "lng": -118.290 },
+    "capacity": 250,
+    "type": "Specialized"
+  },
+  {
+    "id": "h-03",
+    "name": "Eastside Community Clinic",
+    "location": { "lat": 34.040, "lng": -118.200 },
+    "capacity": 50,
+    "type": "Clinic"
+  },
+  {
+    "id": "h-04",
+    "name": "Westview Medical Center",
+    "location": { "lat": 34.08, "lng": -118.35 },
+    "capacity": 300,
+    "type": "General"
+  }
+]
