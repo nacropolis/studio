@@ -110,7 +110,7 @@ export function MapView({
   return (
     <APIProvider apiKey={apiKey} libraries={['visualization']}>
       <Map
-        defaultCenter={{ lat: 34.052235, lng: -118.243683 }}
+        defaultCenter={{ lat: 20.659698, lng: -103.349609 }}
         defaultZoom={11}
         gestureHandling={'greedy'}
         disableDefaultUI={true}
