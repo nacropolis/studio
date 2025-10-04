@@ -12,6 +12,8 @@ type UrbanBeeClientProps = {
   initialHospitals: Hospital[];
 };
 
+
+
 export default function UrbanBeeClient({
   initialZones,
   initialHospitals,

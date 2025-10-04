@@ -1,11 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 export function MapPlaceholder() {
+  const [selectedOption, setSelectedOption] = useState("option1");
+
+  const handleRadioChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedOption(event.target.value);
+  };
   useEffect(() => {
     // Asegúrate de que el mapa no se inicialice dos veces
     const existingMap = L.DomUtil.get('map');
@@ -78,9 +83,25 @@ export function MapPlaceholder() {
         <div id="map" className="w-full h-full z-0" />
 
         {/* Sidebar flotante */}
-        <div className="absolute top-0 right-0 w-[300px] h-full bg-white shadow-lg p-4 z-[1000] overflow-y-auto">
-          <h1 className="text-xl font-bold mb-2">Hola Mundo</h1>
-          <p>Este es un ejemplo de sidebar.</p>
+        <div className="absolute top-0 right-0 w-[300px] h-50% bg-white shadow-lg p-4 z-[1000] overflow-y-auto">
+          <h1 className="text-xl font-bold mb-2">Opciones</h1>
+          <input
+            type="radio"
+            name="option"
+            value="option1"
+            checked={selectedOption === "option1"}
+            onChange={handleRadioChange}
+          />
+          <label className="ml-3">Opción 1</label>
+          <input
+            type="radio"
+            name="option"
+            value="option2"
+            checked={selectedOption === "option2"}
+            onChange={handleRadioChange}
+          />
+          <label className="ml-3">Opción 2</label>
+          {/* Puedes agregar más opciones si lo deseas */}
         </div>
       </CardContent>
     </Card>
