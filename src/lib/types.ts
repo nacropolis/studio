@@ -18,13 +18,13 @@ export type UrbanZone = {
   deprivationIndex: number; // A score from 0 to 1
   center: Coordinates;
   bounds: Coordinates[];
-  distanceToNearestHospital: number;
-  priorityScore: number;
-  color: string;
+  // The following were used for map visualization and can be added back
+  distanceToNearestHospital?: number;
+  priorityScore?: number;
+  color?: string;
 };
 
 export type Recommendation = {
   location: string;
   reason: string;
-  center: Coordinates;
 };

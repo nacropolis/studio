@@ -12,7 +12,9 @@ export async function getRecommendations(
       location: zone.name,
       population: zone.population,
       deprivation_index: zone.deprivationIndex,
-      hospital_distance: zone.distanceToNearestHospital,
+      // The 'hospital_distance' is a simplification for the AI model
+      // In a real scenario, this might be pre-calculated or derived differently
+      hospital_distance: zone.distanceToNearestHospital || 0,
     }));
 
     const input = {
@@ -21,18 +23,8 @@ export async function getRecommendations(
     };
 
     const recommendations = await recommendNewHospitalLocations(input);
-
-    const recommendationsWithCoords = recommendations.map(rec => {
-        const zone = zones.find(z => z.name === rec.location);
-        const center = zone ? { lat: zone.center.lat, lng: zone.center.lng } : { lat: 0, lng: 0 };
-        return {
-            ...rec,
-            center,
-        }
-    })
-
-
-    return recommendationsWithCoords;
+    return recommendations;
+    
   } catch (error) {
     console.error('Error getting recommendations:', error);
     return [];
