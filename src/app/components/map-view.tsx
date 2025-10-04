@@ -92,7 +92,7 @@ export function MapPlaceholder() {
             checked={selectedOption === "option1"}
             onChange={handleRadioChange}
           />
-          <label className="ml-3">Opción 1</label>
+          <label className="ml-3">Opción 1</label><br></br>
           <input
             type="radio"
             name="option"
