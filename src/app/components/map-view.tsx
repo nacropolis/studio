@@ -12,7 +12,7 @@ import L, { LatLngExpression } from 'leaflet';
 import { renderToString } from 'react-dom/server';
 import type { Hospital, UrbanZone, Recommendation } from '@/lib/types';
 import { HospitalIcon, MapPin } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 const createHospitalIcon = () => {
   return L.divIcon({
@@ -28,18 +28,29 @@ const createHospitalIcon = () => {
 };
 
 const createRecommendationIcon = () => {
-    return L.divIcon({
-        html: renderToString(
-            <MapPin className="text-yellow-500" size={36} fill="hsl(48, 96%, 53%)" strokeWidth={1.5} stroke="hsl(var(--accent-foreground))" />
-        ),
-        className: 'bg-transparent border-0',
-        iconSize: [36, 36],
-        iconAnchor: [18, 36],
-    });
-}
+  return L.divIcon({
+    html: renderToString(
+      <MapPin
+        className="text-yellow-500"
+        size={36}
+        fill="hsl(48, 96%, 53%)"
+        strokeWidth={1.5}
+        stroke="hsl(var(--accent-foreground))"
+      />
+    ),
+    className: 'bg-transparent border-0',
+    iconSize: [36, 36],
+    iconAnchor: [18, 36],
+  });
+};
 
-
-const Polygons = ({ zones, showZones }: { zones: UrbanZone[], showZones: boolean }) => {
+const Polygons = ({
+  zones,
+  showZones,
+}: {
+  zones: UrbanZone[];
+  showZones: boolean;
+}) => {
   const map = useMap();
   if (!showZones) return null;
 
@@ -48,7 +59,9 @@ const Polygons = ({ zones, showZones }: { zones: UrbanZone[], showZones: boolean
       {zones.map((zone) => (
         <Polygon
           key={zone.id}
-          positions={zone.bounds.map(b => [b.lat, b.lng]) as LatLngExpression[]}
+          positions={
+            zone.bounds.map((b) => [b.lat, b.lng]) as LatLngExpression[]
+          }
           pathOptions={{ color: zone.color, fillOpacity: 0.35, weight: 2 }}
         />
       ))}
@@ -71,8 +84,19 @@ export function MapView({
   showHospitals,
   showZones,
 }: MapViewProps) {
+  const [isMounted, setIsMounted] = useState(false);
   const hospitalIcon = createHospitalIcon();
   const recommendationIcon = createRecommendationIcon();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div id="map-placeholder" className="w-full h-full bg-muted animate-pulse" />
+    );
+  }
 
   return (
     <MapContainer
@@ -103,18 +127,22 @@ export function MapView({
           </Marker>
         ))}
 
-        <Polygons zones={zones} showZones={showZones} />
-        
-        {recommendations.map((rec, index) => (
-             <Marker key={`rec-${index}`} position={[rec.center.lat, rec.center.lng]} icon={recommendationIcon}>
-                <Popup>
-                    <div>
-                        <h3 className="font-bold">{rec.location}</h3>
-                        <p>{rec.reason}</p>
-                    </div>
-                </Popup>
-             </Marker>
-        ))}
+      <Polygons zones={zones} showZones={showZones} />
+
+      {recommendations.map((rec, index) => (
+        <Marker
+          key={`rec-${index}`}
+          position={[rec.center.lat, rec.center.lng]}
+          icon={recommendationIcon}
+        >
+          <Popup>
+            <div>
+              <h3 className="font-bold">{rec.location}</h3>
+              <p>{rec.reason}</p>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
     </MapContainer>
   );
 }
