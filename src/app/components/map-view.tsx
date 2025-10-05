@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import L from 'leaflet';
+require('dotenv').config();
 
 // --- ESTILOS ---
 import 'leaflet/dist/leaflet.css';
@@ -70,7 +71,6 @@ type LocalidadData = {
   CVE_MUN: string;
 };
 
-const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjA1NjE4MzI3MGE5MTQzMTI5NTFlZjVmOThlZDExNDA5IiwiaCI6Im11cm11cjY0In0==';
 
 async function getCoverageArea(hospitalPoints: L.LatLng[], travelTimeMinutes: number): Promise<any> {
   if (hospitalPoints.length === 0) {
@@ -81,7 +81,7 @@ async function getCoverageArea(hospitalPoints: L.LatLng[], travelTimeMinutes: nu
     const response = await fetch('https://api.openrouteservice.org/v2/isochrones/driving-car', {
       method: 'POST',
       headers: {
-        'Authorization': ORS_API_KEY,
+        'Authorization': process.env.ORS_API_KEY,
         'Content-Type': 'application/json; charset=utf-8',
         'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
       },
