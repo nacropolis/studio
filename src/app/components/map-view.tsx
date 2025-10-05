@@ -213,6 +213,7 @@ export function MapPlaceholder() {
   const [isStateDataLoaded, setIsStateDataLoaded] = useState(false);
   const [isPovertyHeatmapVisible, setIsPovertyHeatmapVisible] = useState(false);
   const [suggestionType, setSuggestionType] = useState<'nivel1' | 'nivel2'>('nivel1');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (mapRef.current) return;
@@ -891,118 +892,140 @@ export function MapPlaceholder() {
     }
   };
 
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(!isSidebarCollapsed);
+  };
+
   return (
     <Card className="w-full h-[100vh]">
       <CardContent className="p-0 h-full w-full relative">
         <div id="map" className="w-full h-full bg-gray-200" />
 
-        <div className="absolute top-4 right-4 z-[1000] bg-white p-4 rounded shadow-lg space-y-4 max-h-[95vh] overflow-y-auto min-w-[300px]">
-          <div>
-            <h3 className="font-bold mb-2">Seleccionar Estado</h3>
-            <select
-              value={selectedState}
-              onChange={e => setSelectedState(e.target.value)}
-              style={{ width: '100%', padding: 8, borderRadius: 4 }}
-            >
-              <option value="all">Todos los estados</option>
-              {MEXICAN_STATES.map(state => (
-                <option key={state} value={state}>{state}</option>
-              ))}
-            </select>
-          </div>
+        {/* Botón para minimizar/expandir sidebar */}
+        // Botón para minimizar/expandir sidebar (sin cambios)
+        <Button
+          onClick={toggleSidebar}
+          className="absolute top-4 right-4 z-[1001] bg-white hover:bg-gray-100 text-gray-800 border border-gray-300 rounded-full w-8 h-8 min-h-8 p-0 flex items-center justify-center shadow-lg"
+          style={{
+            right: isSidebarCollapsed ? '4px' : 'calc(300px + 16px)',
+            transition: 'right 0.3s ease'
+          }}
+        >
+          {isSidebarCollapsed ? '›' : '‹'}
+        </Button>
 
-          {selectedState && selectedState !== "all" && (
-            <>
-              <div>
-                <h3 className="font-bold mb-2">Vistas</h3>
-                <div className="flex flex-col space-y-2">
-                  <Button
-                    onClick={() => setIsHospitalHeatmapVisible(!isHospitalHeatmapVisible)}
-                    variant="outline"
-                    className="w-full"
-                    disabled={!isStateDataLoaded}
-                  >
-                    {isHospitalHeatmapVisible ? "Ver como Puntos" : "Ver Calor de Hospitales"}
-                  </Button>
-                  <Button
-                    onClick={() => setIsPopulationHeatmapVisible(!isPopulationHeatmapVisible)}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {isPopulationHeatmapVisible ? "Ocultar Calor Poblacional" : "Ver Calor Poblacional"}
-                  </Button>
-                  <Button
-                    onClick={() => setIsPovertyHeatmapVisible(!isPovertyHeatmapVisible)}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {isPovertyHeatmapVisible ? "Ocultar Calor de Pobreza" : "Ver Calor de Pobreza"}
-                  </Button>
-                </div>
-              </div>
+        {/* Sidebar modificado con altura fija y scroll interno */}
+        {/* Sidebar con altura fija y scroll interno controlado */}
+        <div
+          className="absolute top-4 right-4 z-[1000] bg-white rounded shadow-lg transition-all duration-300 flex flex-col"
+          style={{
+            width: isSidebarCollapsed ? '0' : '300px',
+            height: 'calc(100vh - 32px)', // Altura fija para el panel
+            opacity: isSidebarCollapsed ? '0' : '1',
+            overflow: 'hidden', // Oculta cualquier desbordamiento del contenedor principal
+            padding: isSidebarCollapsed ? '0' : '1rem',
+            transform: isSidebarCollapsed ? 'translateX(100%)' : 'translateX(0)'
+          }}
+        >
+          {/* Contenedor interno que crecerá y permitirá el scroll */}
+          <div className="flex-1 overflow-y-auto -mr-4 pr-4">
+            <div>
+              <h3 className="font-bold mb-2">Seleccionar Estado</h3>
+              <select
+                value={selectedState}
+                onChange={e => setSelectedState(e.target.value)}
+                className="w-full p-2 border rounded-md bg-gray-50"
+              >
+                <option value="all">Todos los estados</option>
+                {MEXICAN_STATES.map(state => (
+                  <option key={state} value={state}>{state}</option>
+                ))}
+              </select>
+            </div>
 
-              <div>
-                <h3 className="font-bold mb-2">Análisis de Ubicaciones</h3>
-                <div className="p-2 border rounded-md space-y-3">
-                  <div className="space-y-2">
-                    <label className="font-semibold text-sm">Tipo de Hospital Sugerido:</label>
-                    <select
-                      value={suggestionType}
-                      onChange={e => setSuggestionType(e.target.value as 'nivel1' | 'nivel2')}
-                      style={{ width: '100%', padding: 8, borderRadius: 4 }}
+            {selectedState && selectedState !== "all" && (
+              <>
+                <div className="mt-4">
+                  <h3 className="font-bold mb-2">Vistas</h3>
+                  <div className="flex flex-col space-y-2">
+                    <Button
+                      onClick={() => setIsHospitalHeatmapVisible(!isHospitalHeatmapVisible)}
+                      variant="outline"
+                      className="w-full"
+                      disabled={!isStateDataLoaded}
                     >
-                      <option value="nivel1">Hospital Nivel 1 (Pobreza + Carencia Salud)</option>
-                      <option value="nivel2">Hospital Nivel 2 (Alta Densidad Poblacional)</option>
-                    </select>
+                      {isHospitalHeatmapVisible ? "Ver como Puntos" : "Ver Calor de Hospitales"}
+                    </Button>
+                    <Button
+                      onClick={() => setIsPopulationHeatmapVisible(!isPopulationHeatmapVisible)}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      {isPopulationHeatmapVisible ? "Ocultar Calor Poblacional" : "Ver Calor Poblacional"}
+                    </Button>
+                    <Button
+                      onClick={() => setIsPovertyHeatmapVisible(!isPovertyHeatmapVisible)}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      {isPovertyHeatmapVisible ? "Ocultar Calor de Pobreza" : "Ver Calor de Pobreza"}
+                    </Button>
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="font-semibold text-sm">No. de Sugerencias:</label>
-                    <Input
-                      type="number"
-                      value={numSuggestions}
-                      onChange={(e) => setNumSuggestions(parseInt(e.target.value, 10))}
-                      min="1"
-                      max="20"
-                    />
-                  </div>
-
-                  <Button
-                    onClick={findOptimalLocations}
-                    disabled={isAnalyzing || !isStateDataLoaded}
-                    className="w-full"
-                  >
-                    {isAnalyzing ? "Analizando..." : `Encontrar Ubicaciones ${suggestionType === 'nivel1' ? 'Nivel 1' : 'Nivel 2'}`}
-                  </Button>
                 </div>
 
-                {suggestionResults.length > 0 && (
-                  <div className="p-2 border rounded-md mt-4">
-                    <h4 className="font-bold mb-2">
-                      Ubicaciones Sugeridas en {selectedState} ({suggestionType === 'nivel1' ? 'Nivel 1' : 'Nivel 2'}):
-                    </h4>
-                    <ul className="list-decimal list-inside text-sm space-y-1">
-                      {suggestionResults.map((r, index) => (
-                        <li key={r.name}>
-                          <strong>{r.name}</strong> - Puntaje: {r.score.toFixed(2)} (Ranking: {index + 1})
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <div className="mt-4">
+                  <h3 className="font-bold mb-2">Análisis de Ubicaciones</h3>
+                  <div className="p-2 border rounded-md space-y-3">
+                    <div className="space-y-2">
+                      <label className="font-semibold text-sm">Tipo de Hospital Sugerido:</label>
+                      <select
+                        value={suggestionType}
+                        onChange={e => setSuggestionType(e.target.value as 'nivel1' | 'nivel2')}
+                        className="w-full p-2 border rounded-md bg-gray-50"
+                      >
+                        <option value="nivel1">Hospital Nivel 1 (Pobreza + Carencia)</option>
+                        <option value="nivel2">Hospital Nivel 2 (Alta Densidad)</option>
+                      </select>
+                    </div>
 
-                <div className="flex flex-col space-y-2 mt-4">
-                  <Button
-                    onClick={toggleMeasureTool}
-                    variant="outline"
-                    disabled={isAnalyzing}
-                  >
-                    Medir Distancia
-                  </Button>
+                    <div className="space-y-2">
+                      <label className="font-semibold text-sm">No. de Sugerencias:</label>
+                      <Input
+                        type="number"
+                        value={numSuggestions}
+                        onChange={(e) => setNumSuggestions(parseInt(e.target.value, 10))}
+                        min="1"
+                        max="20"
+                      />
+                    </div>
+
+                    <Button
+                      onClick={findOptimalLocations}
+                      disabled={isAnalyzing || !isStateDataLoaded}
+                      className="w-full"
+                    >
+                      {isAnalyzing ? "Analizando..." : `Encontrar Ubicaciones ${suggestionType === 'nivel1' ? 'N1' : 'N2'}`}
+                    </Button>
+                  </div>
+
+                  {suggestionResults.length > 0 && (
+                    <div className="p-2 border rounded-md mt-4">
+                      <h4 className="font-bold mb-2">
+                        Ubicaciones Sugeridas ({suggestionType === 'nivel1' ? 'Nivel 1' : 'Nivel 2'}):
+                      </h4>
+                      <ul className="list-decimal list-inside text-sm space-y-1">
+                        {suggestionResults.map((r, index) => (
+                          <li key={`${r.name}-${index}`}>
+                            <strong>{r.name}</strong> - Puntaje: {r.score.toFixed(2)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
 
         {!isMapReady && (
@@ -1013,4 +1036,4 @@ export function MapPlaceholder() {
       </CardContent>
     </Card>
   );
-} 
+}
