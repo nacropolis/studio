@@ -2,7 +2,14 @@
 
 # dependencies
 /node_modules
-/publics
+public/localidades.json
+public/states
+public/colonias_con_densidad.json
+public/datos_finales.json
+public/datos_limpios.json
+public/datos_pobreza.json
+public/datos_primerNivel.json
+public/datos_segundoNivel.json
 /.pnp
 .pnp.*
 .yarn/*
