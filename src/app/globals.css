@@ -86,3 +86,125 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* globals.css */
+
+/* Estilo para el contenedor del DivIcon (no tocar) */
+.custom-div-icon-container {
+  background: transparent;
+  border: none;
+}
+
+/* Estilo para el icono de hospital dinámico añadido por el usuario */
+.hospital-div-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 50% 50% 50% 0; /* Forma de gota */
+  transform: rotate(-45deg);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 5px rgba(0,0,0,0.5);
+  
+  /* Usamos la imagen como una "máscara" para que el color de fondo la rellene */
+  -webkit-mask-image: url('/hotlinking.png'); /* Ruta a tu icono tipo 1 */
+  mask-image: url('/hotlinking.png');
+  -webkit-mask-size: 70%;
+  mask-size: 70%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+/* Estilo para el contenedor del clúster (no tocar) */
+.custom-cluster {
+  background: transparent;
+  border: none;
+}
+
+/* Estilo para el icono del clúster */
+.cluster-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  color: white;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(0,0,0,0.6);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+/* Estilo para la herramienta de Medición */
+.leaflet-measure-control a {
+  border-radius: 4px !important;
+}
+.leaflet-measure-control .start, .leaflet-measure-control .start:hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-rulers' viewBox='0 0 16 16'%3E%3Cpath d='M1 0a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5v-1H2v-1h4v-1H4v-1h2v-1H2v-1h4V9H4V8h2V7H2V6h4V2h1v4h1V4h1v2h1V3h1V2h1v1h1V1a1 1 0 0 0-1-1H1z'/%3E%3C/svg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* Estilo para el icono de sugerencia */
+.suggestion-icon {
+  font-size: 30px;
+  text-shadow: 0 0 5px rgba(0,0,0,0.7);
+}
+
+/* globals.css */
+
+.custom-div-icon-container {
+  background: transparent;
+  border: none;
+}
+
+.hospital-div-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 5px rgba(0,0,0,0.5);
+  -webkit-mask-image: url('/hotlinking.png');
+  mask-image: url('/hotlinking.png');
+  -webkit-mask-size: 70%;
+  mask-size: 70%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.custom-cluster {
+  background: transparent;
+  border: none;
+}
+
+.cluster-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  color: white;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(0,0,0,0.6);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+.leaflet-measure-control a {
+  border-radius: 4px !important;
+}
+.leaflet-measure-control .start, .leaflet-measure-control .start:hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-rulers' viewBox='0 0 16 16'%3E%3Cpath d='M1 0a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5v-1H2v-1h4v-1H4v-1h2v-1H2v-1h4V9H4V8h2V7H2V6h4V2h1v4h1V4h1v2h1V3h1V2h1v1h1V1a1 1 0 0 0-1-1H1z'/%3E%3C/svg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.suggestion-icon {
+  font-size: 30px;
+  text-shadow: 0 0 5px rgba(0,0,0,0.7);
+}
