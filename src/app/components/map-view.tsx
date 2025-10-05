@@ -28,6 +28,8 @@ type SuggestionResult = {
   name: string;
   score: number;
   center: L.LatLng;
+  type: 'nivel1' | 'nivel2';
+  details: any;
 };
 
 type StateGeometry = {
@@ -64,7 +66,44 @@ type LocalidadData = {
   POB_TOTAL: string;
   NOM_LOC: string;
   NOM_ENT: string;
+  CVE_ENT: string;
+  CVE_MUN: string;
 };
+
+const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjA1NjE4MzI3MGE5MTQzMTI5NTFlZjVmOThlZDExNDA5IiwiaCI6Im11cm11cjY0In0=';
+
+async function getCoverageArea(hospitalPoints: L.LatLng[], travelTimeMinutes: number): Promise<any> {
+  if (hospitalPoints.length === 0) {
+    return null;
+  }
+  const locations = hospitalPoints.map(p => [p.lng, p.lat]);
+  try {
+    const response = await fetch('https://api.openrouteservice.org/v2/isochrones/driving-car', {
+      method: 'POST',
+      headers: {
+        'Authorization': ORS_API_KEY,
+        'Content-Type': 'application/json; charset=utf-8',
+        'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
+      },
+      body: JSON.stringify({
+        locations: locations,
+        range: [travelTimeMinutes * 60],
+        range_type: 'time',
+        options: { "union_polygons": true }
+      }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Error API OpenRouteService:", errorData);
+      throw new Error(`API Error: ${errorData.error.message}`);
+    }
+    const geojsonData = await response.json();
+    return geojsonData.features[0];
+  } catch (error) {
+    console.error("Falló la llamada a getCoverageArea:", error);
+    return null;
+  }
+}
 
 const getDensityColor = (count: number): string => {
   if (count < 1000) return '#28a745';
@@ -79,7 +118,7 @@ const MEXICAN_STATES = [
   "Campeche",
   "Chiapas",
   "Chihuahua",
-  "Ciudad de México",
+  "Ciudad de Mexico",
   "Coahuila de Zaragoza",
   "Colima",
   "Durango",
@@ -87,23 +126,23 @@ const MEXICAN_STATES = [
   "Guerrero",
   "Hidalgo",
   "Jalisco",
-  "México",
-  "Michoacán de Ocampo",
+  "Mexico",
+  "Michoacan de Ocampo",
   "Morelos",
   "Nayarit",
-  "Nuevo León",
+  "Nuevo Leon",
   "Oaxaca",
   "Puebla",
-  "Querétaro",
+  "Queretaro",
   "Quintana Roo",
-  "San Luis Potosí",
+  "San Luis Potosi",
   "Sinaloa",
   "Sonora",
   "Tabasco",
   "Tamaulipas",
   "Tlaxcala",
   "Veracruz de Ignacio de la Llave",
-  "Yucatán",
+  "Yucatan",
   "Zacatecas"
 ];
 
@@ -154,7 +193,10 @@ export function MapPlaceholder() {
   const populationHeatmapLayerRef = useRef<any | null>(null);
   const stateBoundaryLayerRef = useRef<L.GeoJSON | null>(null);
   const currentStateLayerRef = useRef<L.GeoJSON | null>(null);
+  const pobrezaDataRef = useRef<any[]>([]);
+  const povertyHeatmapLayerRef = useRef<any | null>(null);
 
+  const hospitalesNivel1Ref = useRef<HospitalData[]>([]);
   const hospitalesNivel2Ref = useRef<HospitalData[]>([]);
   const localidadesDataRef = useRef<LocalidadData[]>([]);
   const currentStateGeometryRef = useRef<StateGeometry | null>(null);
@@ -169,6 +211,8 @@ export function MapPlaceholder() {
   const [loadingMessage, setLoadingMessage] = useState("Cargando mapa...");
   const [selectedState, setSelectedState] = useState<string>("all");
   const [isStateDataLoaded, setIsStateDataLoaded] = useState(false);
+  const [isPovertyHeatmapVisible, setIsPovertyHeatmapVisible] = useState(false);
+  const [suggestionType, setSuggestionType] = useState<'nivel1' | 'nivel2'>('nivel1');
 
   useEffect(() => {
     if (mapRef.current) return;
@@ -181,7 +225,6 @@ export function MapPlaceholder() {
 
       const mapContainer = document.getElementById('map');
       if (mapContainer && !(mapContainer as any)._leaflet_id) {
-
         const map = L.map('map').setView([23.6345, -102.5528], 5);
         mapRef.current = map;
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
@@ -192,7 +235,8 @@ export function MapPlaceholder() {
             const color = getDensityColor(count);
             return L.divIcon({
               html: `<div class="cluster-icon" style="background-color: ${color};">${count}</div>`,
-              className: 'custom-cluster', iconSize: L.point(40, 40)
+              className: 'custom-cluster',
+              iconSize: L.point(40, 40)
             });
           }
         });
@@ -201,114 +245,189 @@ export function MapPlaceholder() {
         stateBoundaryLayerRef.current = L.geoJSON().addTo(map);
 
         measureControlRef.current = new (L.Control as any).Measure({
-          primaryLengthUnit: 'meters', secondaryLengthUnit: 'kilometers',
-          primaryAreaUnit: 'sqmeters', secondaryAreaUnit: undefined,
-          localization: 'es', activeColor: '#FF6B6B', completedColor: '#C92A2A'
+          primaryLengthUnit: 'meters',
+          secondaryLengthUnit: 'kilometers',
+          primaryAreaUnit: 'sqmeters',
+          secondaryAreaUnit: undefined,
+          localization: 'es',
+          activeColor: '#FF6B6B',
+          completedColor: '#C92A2A'
         });
 
-        // Cargar solo hospitales de nivel 2 y datos de localidades
+        // Cargar datos
         const fetchAllData = async () => {
-          setLoadingMessage("Cargando datos...");
+          setLoadingMessage("Cargando datos geoespaciales...");
 
-          const nivel2Promise = fetch('/datos_segundoNivel.json').then(res => res.json())
-            .then(data => data.filter((h: any) => h.LATITUD != null && h.LONGITUD != null).map((h: any, i: number) => ({
-              id: `nivel2-${i}`,
-              lat: Number(h.LATITUD),
-              lng: Number(h.LONGITUD),
-              name: h["NOMBRE DE LA UNIDAD"] || 'Hospital (Nivel 2)',
-              source: 'level2'
-            } as HospitalData)));
+          try {
+            const nivel1Promise = fetch('/datos_primerNivel.json')
+              .then(res => res.json())
+              .then(data => {
+                if (!Array.isArray(data)) return [];
+                return data
+                  .filter((h: any) => h.LATITUD != null && h.LONGITUD != null)
+                  .map((h: any, i: number) => ({
+                    id: `nivel1-${i}`,
+                    lat: Number(h.LATITUD),
+                    lng: Number(h.LONGITUD),
+                    name: h["NOMBRE DE LA UNIDAD"] || 'Hospital (Nivel 1)',
+                    source: 'level1'
+                  } as HospitalData));
+              });
 
-          const populationPromise = fetch('/localidades.json').then(res => res.json());
+            const nivel2Promise = fetch('/datos_segundoNivel.json')
+              .then(res => res.json())
+              .then(data => {
+                if (!Array.isArray(data)) return [];
+                return data
+                  .filter((h: any) => h.LATITUD != null && h.LONGITUD != null)
+                  .map((h: any, i: number) => ({
+                    id: `nivel2-${i}`,
+                    lat: Number(h.LATITUD),
+                    lng: Number(h.LONGITUD),
+                    name: h["NOMBRE DE LA UNIDAD"] || 'Hospital (Nivel 2)',
+                    source: 'level2'
+                  } as HospitalData));
+              });
 
-          const [hospitalesNivel2, populationData] = await Promise.all([nivel2Promise, populationPromise]);
+            const populationPromise = fetch('/localidades.json')
+              .then(res => res.json())
+              .then(data => Array.isArray(data) ? data : []);
 
-          hospitalesNivel2Ref.current = hospitalesNivel2;
-          localidadesDataRef.current = populationData || [];
+            const pobrezaPromise = fetch('/datos_pobreza.json')
+              .then(res => res.json())
+              .then(data => Array.isArray(data) ? data : []);
 
-          // CREAR HEATMAP POBLACIONAL INICIAL (sin filtrar por estado)
-          // En fetchAllData, reemplaza la parte del heatmap poblacional:
-          // CREAR HEATMAP POBLACIONAL INICIAL (sin filtrar por estado)
-          if (populationData && Array.isArray(populationData)) {
-            const L = typeof window !== 'undefined' ? (window as any).L : null;
-            if (L) {
-              // Calcular estadísticas para escala
-              const populations = populationData
-                .map((loc: any) => parseInt(String(loc.POB_TOTAL).replace(/,/g, ''), 10))
-                .filter(pop => !isNaN(pop) && pop > 0)
-                .sort((a, b) => a - b);
+            const [hospitalesNivel1, hospitalesNivel2, populationData, pobrezaData] = await Promise.all([
+              nivel1Promise,
+              nivel2Promise,
+              populationPromise,
+              pobrezaPromise
+            ]);
 
-              // En fetchAllData, reemplaza solo la parte del heatmap:
-              // CREAR HEATMAP POBLACIONAL INICIAL (sin filtrar por estado)
-              // En fetchAllData, reemplaza SOLO la parte del heatmap poblacional con esto:
-              if (populationData && Array.isArray(populationData)) {
-                const L = typeof window !== 'undefined' ? (window as any).L : null;
-                if (L) {
-                  // Procesar datos de población
-                  const validData = populationData
-                    .map((loc: any) => {
-                      const lat = parseFloat(loc.LAT_DECIMAL);
-                      const lng = parseFloat(loc.LON_DECIMAL);
-                      const pop = parseInt(String(loc.POB_TOTAL).replace(/,/g, ''), 10);
+            hospitalesNivel1Ref.current = hospitalesNivel1;
+            hospitalesNivel2Ref.current = hospitalesNivel2;
+            localidadesDataRef.current = populationData;
+            pobrezaDataRef.current = pobrezaData;
 
-                      if (!isNaN(lat) && !isNaN(lng) && !isNaN(pop) && pop > 0) {
-                        return { lat, lng, pop };
-                      }
-                      return null;
-                    })
-                    .filter(Boolean) as { lat: number; lng: number; pop: number }[];
+            // Crear heatmap poblacional
+            setLoadingMessage("Generando visualización de población...");
+            if (Array.isArray(populationData) && populationData.length > 0) {
+              const validData = populationData
+                .map((loc: any) => {
+                  const lat = parseFloat(loc.LAT_DECIMAL);
+                  const lng = parseFloat(loc.LON_DECIMAL);
+                  const pop = parseInt(String(loc.POB_TOTAL).replace(/,/g, ''), 10);
+                  return { lat, lng, pop };
+                })
+                .filter(d => !isNaN(d.lat) && !isNaN(d.lng) && d.pop > 0);
 
-                  if (validData.length > 0) {
-                    // Calcular estadísticas para escala logarítmica
-                    const populations = validData.map(d => d.pop).sort((a, b) => a - b);
-                    const minPop = populations[0];
-                    const maxPop = populations[populations.length - 1];
-                    const logMin = Math.log10(minPop || 1);
-                    const logMax = Math.log10(maxPop);
+              if (validData.length > 0) {
+                const populations = validData.map(d => d.pop).sort((a, b) => a - b);
+                const logMin = Math.log10(populations[0] || 1);
+                const logMax = Math.log10(populations[populations.length - 1]);
 
-                    const heatData = validData.map(data => {
-                      const logValue = Math.log10(data.pop);
-                      const normalized = (logValue - logMin) / (logMax - logMin);
-                      return [data.lat, data.lng, Math.min(normalized, 1)] as [number, number, number];
-                    });
+                const heatData = validData.map(data => {
+                  const normalized = logMax > logMin ?
+                    (Math.log10(data.pop) - logMin) / (logMax - logMin) : 0;
+                  return [data.lat, data.lng, Math.min(normalized, 1)];
+                });
 
-                    populationHeatmapLayerRef.current = L.heatLayer(heatData, {
-                      radius: 30,
-                      blur: 20,
-                      maxZoom: 15,
-                      max: 1.0,
-                      minOpacity: 0.3,
-                      gradient: {
-                        0.0: 'rgba(0, 0, 255, 0)',
-                        0.1: 'blue',
-                        0.3: 'cyan',
-                        0.5: 'lime',
-                        0.7: 'yellow',
-                        0.9: 'orange',
-                        1.0: 'red'
-                      }
-                    });
+                populationHeatmapLayerRef.current = L.heatLayer(heatData, {
+                  radius: 30,
+                  blur: 20,
+                  maxZoom: 15,
+                  max: 1.0,
+                  gradient: {
+                    0.0: 'rgba(0, 0, 255, 0)',
+                    0.1: 'blue',
+                    0.3: 'cyan',
+                    0.5: 'lime',
+                    0.7: 'yellow',
+                    0.9: 'orange',
+                    1.0: 'red'
                   }
-                }
+                });
               }
             }
-          }
 
-          setLoadingMessage("");
-          setIsMapReady(true);
+            // Crear heatmap de pobreza
+            setLoadingMessage("Generando visualización de pobreza...");
+            if (Array.isArray(pobrezaData) && pobrezaData.length > 0 &&
+              Array.isArray(populationData) && populationData.length > 0) {
+
+              const pobrezaLookup = new Map(
+                pobrezaData.map((m: any) => [m["Clave municipal"], m])
+              );
+
+              const povertyHeatData = populationData
+                .map((loc: any) => {
+                  const claveMun = parseInt(
+                    String(loc.CVE_ENT).padStart(2, '0') +
+                    String(loc.CVE_MUN).padStart(3, '0'),
+                    10
+                  );
+                  const datosPobreza = pobrezaLookup.get(claveMun);
+                  if (!datosPobreza) return null;
+
+                  return [
+                    parseFloat(loc.LAT_DECIMAL),
+                    parseFloat(loc.LON_DECIMAL),
+                    datosPobreza["Pobreza"]
+                  ];
+                })
+                .filter(Boolean);
+
+              if (povertyHeatData.length > 0) {
+                const maxPoverty = povertyHeatData.reduce((max: number, p: any) =>
+                  p[2] > max ? p[2] : max, 0
+                );
+
+                const normalizedHeatData = povertyHeatData.map((p: any) => [
+                  p[0],
+                  p[1],
+                  maxPoverty > 0 ? p[2] / maxPoverty : 0
+                ]);
+
+                povertyHeatmapLayerRef.current = L.heatLayer(normalizedHeatData, {
+                  radius: 20,
+                  blur: 25,
+                  maxZoom: 11,
+                  max: 1.0,
+                  gradient: {
+                    0.1: 'lime',
+                    0.3: 'yellow',
+                    0.6: 'orange',
+                    1.0: 'red'
+                  }
+                });
+              }
+            }
+
+            setLoadingMessage("");
+            setIsMapReady(true);
+
+          } catch (error) {
+            console.error("Error cargando datos:", error);
+            setLoadingMessage("Error cargando datos");
+          }
         };
 
         await fetchAllData();
       }
     };
+
     initMap();
-    return () => { mapRef.current?.remove(); mapRef.current = null; };
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
   }, []);
 
   // Cargar geometría del estado seleccionado
   useEffect(() => {
     if (selectedState === "all") {
-      // Limpiar mapa cuando se selecciona "todos los estados"
       if (markersClusterRef.current) {
         markersClusterRef.current.clearLayers();
       }
@@ -322,7 +441,6 @@ export function MapPlaceholder() {
       currentStateGeometryRef.current = null;
       currentStateLayerRef.current = null;
 
-      // Resetear vista a México completo
       if (mapRef.current) {
         mapRef.current.setView([23.6345, -102.5528], 5);
       }
@@ -334,7 +452,6 @@ export function MapPlaceholder() {
       setLoadingMessage(`Cargando datos de ${selectedState}...`);
 
       try {
-        // Cargar geometría del estado
         const response = await fetch(`/states/${encodeURIComponent(selectedState)}.json`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -345,51 +462,77 @@ export function MapPlaceholder() {
           stateBoundaryLayerRef.current.clearLayers();
           stateBoundaryLayerRef.current.addData(stateGeoJSON);
 
-          // Crear una capa separada para las verificaciones de geometría
           currentStateLayerRef.current = L.geoJSON(stateGeoJSON);
 
-          // Ajustar vista al estado
           const bounds = stateBoundaryLayerRef.current.getBounds();
           if (bounds.isValid()) {
             mapRef.current.fitBounds(bounds, { padding: [20, 20] });
           }
 
-          // Guardar geometría para análisis
           currentStateGeometryRef.current = stateGeoJSON.features[0]?.geometry || null;
         }
 
-        // Filtrar hospitales de nivel 2 que están dentro del estado usando la geometría real
         if (markersClusterRef.current && mapRef.current && currentStateLayerRef.current) {
           markersClusterRef.current.clearLayers();
           const L = (window as any).L;
 
-          const hospitalIconLevel2 = L.icon({ iconUrl: '/hotlinking3.png', iconSize: [40, 40] });
+          // Iconos diferentes para nivel 1 y nivel 2
+          const hospitalIconLevel1 = L.icon({
+            iconUrl: '/hospital1.png',
+            iconSize: [35, 35],
+            iconAnchor: [17, 35],
+            popupAnchor: [0, -35]
+          });
 
-          const hospitalsInState = hospitalesNivel2Ref.current.filter(hospital => {
+          const hospitalIconLevel2 = L.icon({
+            iconUrl: '/hospital2.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+          });
+
+          // Filtrar hospitales por estado
+          const hospitalsInStateNivel1 = hospitalesNivel1Ref.current.filter(hospital => {
             const hospitalPoint = L.latLng(hospital.lat, hospital.lng);
             return isPointInState(hospitalPoint, currentStateLayerRef.current!);
           });
 
-          console.log(`Hospitales encontrados en ${selectedState}:`, hospitalsInState.length);
+          const hospitalsInStateNivel2 = hospitalesNivel2Ref.current.filter(hospital => {
+            const hospitalPoint = L.latLng(hospital.lat, hospital.lng);
+            return isPointInState(hospitalPoint, currentStateLayerRef.current!);
+          });
 
-          const markers = hospitalsInState.map(hospital =>
-            L.marker([hospital.lat, hospital.lng], { icon: hospitalIconLevel2 })
-              .bindPopup(`<b>${hospital.name}</b><br/>${selectedState}`)
+          console.log(`Hospitales Nivel 1 en ${selectedState}:`, hospitalsInStateNivel1.length);
+          console.log(`Hospitales Nivel 2 en ${selectedState}:`, hospitalsInStateNivel2.length);
+
+          // Agregar marcadores de nivel 1
+          const markersNivel1 = hospitalsInStateNivel1.map(hospital =>
+            L.marker([hospital.lat, hospital.lng], { icon: hospitalIconLevel1 })
+              .bindPopup(`<b>${hospital.name}</b><br/>Nivel 1<br/>${selectedState}`)
           );
 
-          markersClusterRef.current.addLayers(markers);
+          // Agregar marcadores de nivel 2
+          const markersNivel2 = hospitalsInStateNivel2.map(hospital =>
+            L.marker([hospital.lat, hospital.lng], { icon: hospitalIconLevel2 })
+              .bindPopup(`<b>${hospital.name}</b><br/>Nivel 2<br/>${selectedState}`)
+          );
 
-          // Asegurarse de que el cluster se añade al mapa
+          markersClusterRef.current.addLayers([...markersNivel1, ...markersNivel2]);
+
           if (!mapRef.current.hasLayer(markersClusterRef.current)) {
             mapRef.current.addLayer(markersClusterRef.current);
           }
 
-          // Actualizar heatmap de hospitales
+          // Crear heatmap combinado
           if (hospitalHeatmapLayerRef.current && mapRef.current.hasLayer(hospitalHeatmapLayerRef.current)) {
             mapRef.current.removeLayer(hospitalHeatmapLayerRef.current);
           }
 
-          const heatData = hospitalsInState.map(h => [h.lat, h.lng, 1.0]);
+          const heatData = [
+            ...hospitalsInStateNivel1.map(h => [h.lat, h.lng, 1.0]),
+            ...hospitalsInStateNivel2.map(h => [h.lat, h.lng, 0.7]) // Peso menor para nivel 2
+          ];
+
           if (heatData.length > 0) {
             hospitalHeatmapLayerRef.current = (L as any).heatLayer(heatData, {
               radius: 25,
@@ -403,7 +546,6 @@ export function MapPlaceholder() {
             });
           }
 
-          // Aplicar la visibilidad actual del heatmap
           if (isHospitalHeatmapVisible && hospitalHeatmapLayerRef.current) {
             if (mapRef.current.hasLayer(markersClusterRef.current)) {
               mapRef.current.removeLayer(markersClusterRef.current);
@@ -432,13 +574,12 @@ export function MapPlaceholder() {
     loadStateData();
   }, [selectedState]);
 
-  // Efecto separado para manejar cambios en la visibilidad del heatmap de hospitales
+  // Efectos para manejar visibilidad de heatmaps
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !markersClusterRef.current || !hospitalHeatmapLayerRef.current || !isStateDataLoaded) return;
 
     if (isHospitalHeatmapVisible) {
-      // Mostrar heatmap, ocultar markers
       if (map.hasLayer(markersClusterRef.current)) {
         map.removeLayer(markersClusterRef.current);
       }
@@ -446,7 +587,6 @@ export function MapPlaceholder() {
         map.addLayer(hospitalHeatmapLayerRef.current);
       }
     } else {
-      // Mostrar markers, ocultar heatmap
       if (map.hasLayer(hospitalHeatmapLayerRef.current)) {
         map.removeLayer(hospitalHeatmapLayerRef.current);
       }
@@ -456,7 +596,21 @@ export function MapPlaceholder() {
     }
   }, [isHospitalHeatmapVisible, isStateDataLoaded]);
 
-  // Efecto separado para manejar cambios en la visibilidad del heatmap poblacional
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !povertyHeatmapLayerRef.current) return;
+
+    if (isPovertyHeatmapVisible) {
+      if (!map.hasLayer(povertyHeatmapLayerRef.current)) {
+        map.addLayer(povertyHeatmapLayerRef.current);
+      }
+    } else {
+      if (map.hasLayer(povertyHeatmapLayerRef.current)) {
+        map.removeLayer(povertyHeatmapLayerRef.current);
+      }
+    }
+  }, [isPovertyHeatmapVisible]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !populationHeatmapLayerRef.current) return;
@@ -472,9 +626,7 @@ export function MapPlaceholder() {
     }
   }, [isPopulationHeatmapVisible]);
 
-  // Efecto para actualizar el heatmap poblacional cuando cambia el estado
-  // Efecto para actualizar el heatmap poblacional cuando cambia el estado
-  // Efecto para actualizar el heatmap poblacional cuando cambia el estado
+  // Efecto para actualizar heatmap poblacional por estado
   useEffect(() => {
     const updatePopulationHeatmap = async () => {
       if (!mapRef.current || !localidadesDataRef.current.length) return;
@@ -482,26 +634,20 @@ export function MapPlaceholder() {
       const L = typeof window !== 'undefined' ? (window as any).L : null;
       if (!L) return;
 
-      // Filtrar por estado usando NOM_ENT
       const filteredPopulationData = selectedState !== "all" && selectedState
         ? localidadesDataRef.current.filter((loc: any) => loc.NOM_ENT === selectedState)
         : localidadesDataRef.current;
 
       console.log(`Actualizando heatmap poblacional para ${selectedState}: ${filteredPopulationData.length} localidades`);
 
-      // Procesar datos de población
       const validData = filteredPopulationData
         .map((loc: any) => {
           const lat = parseFloat(loc.LAT_DECIMAL);
           const lng = parseFloat(loc.LON_DECIMAL);
           const pop = parseInt(String(loc.POB_TOTAL).replace(/,/g, ''), 10);
-
-          if (!isNaN(lat) && !isNaN(lng) && !isNaN(pop) && pop > 0) {
-            return { lat, lng, pop };
-          }
-          return null;
+          return { lat, lng, pop };
         })
-        .filter(Boolean) as { lat: number; lng: number; pop: number }[];
+        .filter(d => !isNaN(d.lat) && !isNaN(d.lng) && d.pop > 0);
 
       if (validData.length === 0) {
         console.log("No hay datos válidos para el heatmap");
@@ -512,23 +658,21 @@ export function MapPlaceholder() {
         return;
       }
 
-      // Calcular estadísticas
       const populations = validData.map(d => d.pop).sort((a, b) => a - b);
       const minPop = populations[0];
       const maxPop = populations[populations.length - 1];
 
-      // Usar escala logarítmica para mejor distribución
       const logMin = Math.log10(minPop || 1);
       const logMax = Math.log10(maxPop);
 
-      // Crear heat data con valores normalizados (0-1)
-      const heatData = validData.map(data => {
-        const logValue = Math.log10(data.pop);
-        const normalized = (logValue - logMin) / (logMax - logMin);
-        return [data.lat, data.lng, Math.min(normalized, 1)] as [number, number, number];
-      });
+      const heatData = validData
+        .filter(data => data.pop > 900) // Filtra solo poblaciones significativas
+        .map(data => {
+          const logValue = Math.log10(data.pop);
+          const normalized = (logValue - logMin) / (logMax - logMin);
+          return [data.lat, data.lng, Math.min(normalized, 1)] as [number, number, number];
+        });
 
-      // Actualizar heatmap
       if (populationHeatmapLayerRef.current && mapRef.current.hasLayer(populationHeatmapLayerRef.current)) {
         mapRef.current.removeLayer(populationHeatmapLayerRef.current);
       }
@@ -542,8 +686,8 @@ export function MapPlaceholder() {
         gradient: {
           0.0: 'rgba(0, 0, 255, 0)',
           0.1: 'blue',
-          0.3: 'cyan',
-          0.5: 'lime',
+          0.15: 'cyan',
+          0.3: 'lime',
           0.7: 'yellow',
           0.9: 'orange',
           1.0: 'red'
@@ -558,160 +702,179 @@ export function MapPlaceholder() {
     updatePopulationHeatmap();
   }, [selectedState, isPopulationHeatmapVisible]);
 
-  const findOptimalLocations = () => {
+  const findOptimalLocations = async () => {
     const L = (window as any).L;
-
-    if (!mapRef.current) {
-      alert("El mapa no está listo.");
-      return;
-    }
-
-    if (selectedState !== "all" && (!currentStateLayerRef.current || !isStateDataLoaded)) {
-      alert("Los datos del estado no están cargados.");
-      return;
-    }
-
-    if (localidadesDataRef.current.length === 0) {
-      alert("Los datos de población no están cargados.");
+    if (!mapRef.current || !isStateDataLoaded || !localidadesDataRef.current.length) {
+      alert("El mapa o los datos necesarios no están completamente cargados.");
       return;
     }
 
     setIsAnalyzing(true);
+    setLoadingMessage("Calculando áreas de cobertura por carretera...");
     suggestionsLayerRef.current?.clearLayers();
 
-    setTimeout(() => {
-      try {
-        const map = mapRef.current!;
+    try {
+      // Obtener hospitales base según el tipo de sugerencia
+      let hospitalesBase: HospitalData[] = [];
+      let tiempoViajeMinutos = 20;
+      let minDistanceKm = 10;
 
-        // Filtrar hospitales según si es "all" o estado específico usando la geometría real
-        let hospitalsToAnalyze = hospitalesNivel2Ref.current;
+      if (suggestionType === 'nivel1') {
+        hospitalesBase = hospitalesNivel1Ref.current;
+      } else {
+        hospitalesBase = hospitalesNivel2Ref.current;
+        // Para nivel 2, podemos usar una distancia menor ya que son para zonas de crecimiento
+        minDistanceKm = 5;
+      }
 
-        if (selectedState !== "all") {
-          hospitalsToAnalyze = hospitalesNivel2Ref.current.filter(hospital => {
-            const hospitalPoint = L.latLng(hospital.lat, hospital.lng);
-            return isPointInState(hospitalPoint, currentStateLayerRef.current!);
-          });
-        }
+      const hospitalesEnEstado = hospitalesBase.filter(hospital => {
+        const point = L.latLng(hospital.lat, hospital.lng);
+        return isPointInState(point, currentStateLayerRef.current!);
+      });
 
-        const allHospitals = hospitalsToAnalyze.map(h => L.latLng(h.lat, h.lng));
-        const accessibilityRadius = 5000; // 5km en metros
+      const allHospitalPoints = hospitalesEnEstado.map(h => L.latLng(h.lat, h.lng));
 
-        let scoredLocalidades = [];
+      const hospitalCoveragePolygon = await getCoverageArea(allHospitalPoints, tiempoViajeMinutos);
 
-        // PRIMERO: Filtrar localidades por estado usando NOM_ENT
-        const filteredLocalidades = selectedState !== "all"
-          ? localidadesDataRef.current.filter((loc: any) => loc.NOM_ENT === selectedState)
-          : localidadesDataRef.current;
+      setLoadingMessage("Analizando zonas sin cobertura...");
 
-        console.log(`Analizando ${filteredLocalidades.length} localidades para ${selectedState}`);
+      const localidadesEnEstado = localidadesDataRef.current.filter((loc: any) => loc.NOM_ENT === selectedState);
 
-        for (const loc of filteredLocalidades) {
+      // Cargar turf.js dinámicamente
+      const turf = await import('@turf/turf');
+
+      const scoredLocalidades = localidadesEnEstado
+        .map((loc: any) => {
           const lat = parseFloat(loc.LAT_DECIMAL);
           const lng = parseFloat(loc.LON_DECIMAL);
           const population = parseInt(String(loc.POB_TOTAL).replace(/,/g, ''), 10);
+          if (isNaN(lat) || isNaN(lng) || isNaN(population) || population === 0) return null;
 
-          if (isNaN(lat) || isNaN(lng) || isNaN(population)) continue;
+          const locPoint = turf.point([lng, lat]);
 
-          const locPoint = L.latLng(lat, lng);
-
-          // Calcular hospitales accesibles
-          const accessibleHospitals = allHospitals.filter(h => locPoint.distanceTo(h) <= accessibilityRadius).length;
-          const populationDensityFactor = population / 1000;
-          const nhiScore = (populationDensityFactor * populationDensityFactor) - accessibleHospitals;
-
-          scoredLocalidades.push({
-            name: loc.NOM_LOC || 'N/A',
-            score: nhiScore,
-            center: locPoint,
-            population: population,
-            accessibleHospitals: accessibleHospitals
-          });
-        }
-
-        console.log(`Localidades procesadas: ${scoredLocalidades.length}`);
-
-        // Filtrar solo las que cumplen la condición NH_i > 50
-        const candidates = scoredLocalidades.filter(s => s.score > 50);
-
-        console.log(`Candidatos con NH_i > 50: ${candidates.length}`);
-
-        if (candidates.length === 0) {
-          alert("No se encontraron localidades con un Índice de Necesidad Hospitalaria (NH_i) mayor a 50 con los criterios actuales.");
-          setIsAnalyzing(false);
-          return;
-        }
-
-        // SEGUNDO: Aplicar distancia mínima de 20km entre sugerencias y hospitales existentes
-        const MIN_DISTANCE_KM = 2;
-        const selectedSuggestions = [];
-
-        // Ordenar candidatos por puntaje (más alto primero)
-        candidates.sort((a, b) => b.score - a.score);
-
-        for (const candidate of candidates) {
-          // Verificar distancia con hospitales existentes
-          const isFarFromExistingHospitals = allHospitals.every(hospital =>
-            candidate.center.distanceTo(hospital) >= MIN_DISTANCE_KM * 1000 // Convertir a metros
-          );
-
-          // Verificar distancia con sugerencias ya seleccionadas
-          const isFarFromOtherSuggestions = selectedSuggestions.every(selected =>
-            candidate.center.distanceTo(selected.center) >= MIN_DISTANCE_KM * 1000
-          );
-
-          if (isFarFromExistingHospitals && isFarFromOtherSuggestions) {
-            selectedSuggestions.push(candidate);
-
-            // Si ya tenemos suficientes sugerencias, salir del loop
-            if (selectedSuggestions.length >= numSuggestions) {
-              break;
-            }
+          if (hospitalCoveragePolygon && turf.booleanPointInPolygon(locPoint, hospitalCoveragePolygon)) {
+            return null;
           }
+
+          let score = 0;
+          let details = { population };
+
+          if (suggestionType === 'nivel1') {
+            // Para nivel 1: usar pobreza y carencia de salud (como originalmente)
+            const pobrezaLookup = new Map(pobrezaDataRef.current.map((m: any) => [m["Clave municipal"], m]));
+            const claveMunicipalCompleta = parseInt(
+              String(loc.CVE_ENT).padStart(2, '0') +
+              String(loc.CVE_MUN).padStart(3, '0'),
+              10
+            );
+            const datosPobreza = pobrezaLookup.get(claveMunicipalCompleta);
+            if (!datosPobreza) return null;
+
+            const factorPoblacion = Math.log10(population + 1);
+            const factorCarenciaSalud = datosPobreza["Carencia por acceso a los servicios de salud"] || 0;
+            const factorPobrezaGeneral = datosPobreza["Pobreza"] || 0;
+            score = factorPoblacion * factorCarenciaSalud * (1 + factorPobrezaGeneral / 100);
+
+            details = {
+              ...details,
+              poverty: factorPobrezaGeneral,
+              healthAccessDeficiency: factorCarenciaSalud
+            };
+          } else {
+            // Para nivel 2: solo densidad poblacional ALTA (para zonas de crecimiento)
+            const UMBRAL_POBLACION_MINIMA = 5000;
+            const POBLACION_OBJETIVO = 20000; // Población ideal para un hospital nivel 2
+
+            if (population < UMBRAL_POBLACION_MINIMA) {
+              return null; // Excluir localidades muy pequeñas
+            }
+
+            // Score que favorece localidades cercanas a la población objetivo
+            score = population * Math.exp(-Math.abs(population - POBLACION_OBJETIVO) / POBLACION_OBJETIVO);
+          }
+
+          return {
+            name: loc.NOM_LOC || 'N/A',
+            score: score,
+            center: L.latLng(lat, lng),
+            type: suggestionType,
+            details: details
+          };
+        })
+        .filter(Boolean);
+
+      setLoadingMessage("Seleccionando ubicaciones óptimas...");
+
+      if (scoredLocalidades.length === 0) {
+        alert(`No se encontraron localidades sin cobertura que requieran un nuevo hospital de ${suggestionType === 'nivel1' ? 'nivel 1' : 'nivel 2'}.`);
+        setIsAnalyzing(false);
+        setLoadingMessage("");
+        return;
+      }
+
+      scoredLocalidades.sort((a: any, b: any) => b.score - a.score);
+      const topSuggestions = [];
+      const existingAndNewPoints = [...allHospitalPoints];
+
+      for (const candidate of scoredLocalidades) {
+        const c = candidate as any;
+        const isFarEnough = existingAndNewPoints.every(p =>
+          c.center.distanceTo(p) > minDistanceKm * 1000
+        );
+        if (isFarEnough) {
+          topSuggestions.push(c);
+          existingAndNewPoints.push(c.center);
+          if (topSuggestions.length >= numSuggestions) break;
         }
+      }
 
-        console.log(`Sugerencias finales después de aplicar distancia mínima: ${selectedSuggestions.length}`);
+      if (topSuggestions.length === 0) {
+        alert(`No se encontraron ubicaciones que cumplan con la distancia mínima de ${minDistanceKm}km.`);
+      } else {
+        topSuggestions.forEach((suggestion: any, index: number) => {
+          // Iconos diferentes para cada tipo de sugerencia
+          const iconHtml = suggestion.type === 'nivel1'
+            ? '🏥<div style="font-size: 10px; text-align: center; color: blue; font-weight: bold;">N1</div>'
+            : '🏨<div style="font-size: 10px; text-align: center; color: green; font-weight: bold;">N2</div>';
 
-        if (selectedSuggestions.length === 0) {
-          alert(`No se encontraron ubicaciones que cumplan con la distancia mínima de ${MIN_DISTANCE_KM}km de los hospitales existentes.`);
-          setIsAnalyzing(false);
-          return;
-        }
-
-        const topSuggestions = selectedSuggestions;
-
-        const suggestionBounds = L.latLngBounds(topSuggestions.map(s => s.center));
-
-        topSuggestions.forEach((suggestion, index) => {
           L.marker(suggestion.center, {
             icon: L.divIcon({
-              html: `⭐<div style="font-size: 10px; text-align: center; color: black; font-weight: bold;">${index + 1}</div>`,
+              html: `${iconHtml}<div style="font-size: 8px; text-align: center; color: black; font-weight: bold;">${index + 1}</div>`,
               className: 'suggestion-icon',
               iconSize: [30, 30]
             })
           })
             .bindPopup(`
-            <b>${suggestion.name}</b><br/>
-            Índice NH_i: ${suggestion.score.toFixed(2)}<br/>
-            Población: ${suggestion.population}<br/>
-            Hospitales accesibles: ${suggestion.accessibleHospitals}<br/>
-            Ranking: ${index + 1}
-          `)
+  <b>${index + 1}. ${suggestion.name}</b><br/>
+  <b>Tipo: ${suggestion.type === 'nivel1' ?
+                (suggestion.details.population < 2000 ? 'Centro de Salud' : 'Hospital Nivel 1') :
+                'Hospital Nivel 2'}</b><br/>
+  <b>Índice de Necesidad: ${suggestion.score.toFixed(2)}</b><br/>
+  <hr>
+  Población: ${suggestion.details.population.toLocaleString()}<br/>
+  ${suggestion.type === 'nivel1' ? `
+  Pobreza: ${suggestion.details.poverty?.toFixed(2)}%<br/>
+  Carencia Acceso a Salud: ${suggestion.details.healthAccessDeficiency?.toFixed(2)}%
+  ` : 'Criterio: Alta Densidad Poblacional (Zona de Crecimiento)'}
+`)
             .addTo(suggestionsLayerRef.current!);
         });
 
+        const suggestionBounds = L.latLngBounds(topSuggestions.map((s: any) => s.center));
         if (suggestionBounds.isValid()) {
-          map.fitBounds(suggestionBounds, { padding: [50, 50] });
+          mapRef.current.fitBounds(suggestionBounds, { padding: [50, 50] });
         }
-
-        setSuggestionResults(topSuggestions);
-        setIsAnalyzing(false);
-
-      } catch (error) {
-        console.error("Error in analysis:", error);
-        setIsAnalyzing(false);
-        alert("Error en el análisis. Por favor intenta de nuevo.");
       }
-    }, 100);
+
+      setSuggestionResults(topSuggestions as any);
+
+    } catch (error) {
+      console.error("Error en el análisis principal:", error);
+      alert(`Ocurrió un error en el análisis: ${error}`);
+    } finally {
+      setIsAnalyzing(false);
+      setLoadingMessage("");
+    }
   };
 
   const handleAddHospital = () => {
@@ -733,9 +896,7 @@ export function MapPlaceholder() {
       <CardContent className="p-0 h-full w-full relative">
         <div id="map" className="w-full h-full bg-gray-200" />
 
-        {/* Panel de control */}
         <div className="absolute top-4 right-4 z-[1000] bg-white p-4 rounded shadow-lg space-y-4 max-h-[95vh] overflow-y-auto min-w-[300px]">
-          {/* Selector de Estado */}
           <div>
             <h3 className="font-bold mb-2">Seleccionar Estado</h3>
             <select
@@ -770,12 +931,31 @@ export function MapPlaceholder() {
                   >
                     {isPopulationHeatmapVisible ? "Ocultar Calor Poblacional" : "Ver Calor Poblacional"}
                   </Button>
+                  <Button
+                    onClick={() => setIsPovertyHeatmapVisible(!isPovertyHeatmapVisible)}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {isPovertyHeatmapVisible ? "Ocultar Calor de Pobreza" : "Ver Calor de Pobreza"}
+                  </Button>
                 </div>
               </div>
 
               <div>
                 <h3 className="font-bold mb-2">Análisis de Ubicaciones</h3>
                 <div className="p-2 border rounded-md space-y-3">
+                  <div className="space-y-2">
+                    <label className="font-semibold text-sm">Tipo de Hospital Sugerido:</label>
+                    <select
+                      value={suggestionType}
+                      onChange={e => setSuggestionType(e.target.value as 'nivel1' | 'nivel2')}
+                      style={{ width: '100%', padding: 8, borderRadius: 4 }}
+                    >
+                      <option value="nivel1">Hospital Nivel 1 (Pobreza + Carencia Salud)</option>
+                      <option value="nivel2">Hospital Nivel 2 (Alta Densidad Poblacional)</option>
+                    </select>
+                  </div>
+
                   <div className="space-y-2">
                     <label className="font-semibold text-sm">No. de Sugerencias:</label>
                     <Input
@@ -786,18 +966,21 @@ export function MapPlaceholder() {
                       max="20"
                     />
                   </div>
+
                   <Button
                     onClick={findOptimalLocations}
                     disabled={isAnalyzing || !isStateDataLoaded}
                     className="w-full"
                   >
-                    {isAnalyzing ? "Analizando..." : "Encontrar Ubicaciones Óptimas"}
+                    {isAnalyzing ? "Analizando..." : `Encontrar Ubicaciones ${suggestionType === 'nivel1' ? 'Nivel 1' : 'Nivel 2'}`}
                   </Button>
                 </div>
 
                 {suggestionResults.length > 0 && (
                   <div className="p-2 border rounded-md mt-4">
-                    <h4 className="font-bold mb-2">Ubicaciones Sugeridas en {selectedState}:</h4>
+                    <h4 className="font-bold mb-2">
+                      Ubicaciones Sugeridas en {selectedState} ({suggestionType === 'nivel1' ? 'Nivel 1' : 'Nivel 2'}):
+                    </h4>
                     <ul className="list-decimal list-inside text-sm space-y-1">
                       {suggestionResults.map((r, index) => (
                         <li key={r.name}>
@@ -809,7 +992,6 @@ export function MapPlaceholder() {
                 )}
 
                 <div className="flex flex-col space-y-2 mt-4">
-
                   <Button
                     onClick={toggleMeasureTool}
                     variant="outline"
@@ -831,4 +1013,4 @@ export function MapPlaceholder() {
       </CardContent>
     </Card>
   );
-}
+} 
